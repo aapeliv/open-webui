@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
+from open_webui.tasks import create_task
 
 from open_webui.models.cost_tracking import OpenRouterGenerations
 from open_webui.models.models import Models
@@ -726,8 +727,42 @@ async def generate_chat_completion(
             },
         )
 
+
+        async def __fetch_generation_cost(open_router_gen_id):
+            try:
+                await asyncio.sleep(5)
+                # log.info("I have slept well and now I'm ready to work.")
+                session = aiohttp.ClientSession(
+                    trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
+                )
+
+                r = await session.request(
+                    method="GET",
+                    url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+                response = await r.json()
+
+                OpenRouterGenerations.update_fetched_data(
+                    open_router_gen_id=open_router_gen_id,
+                    data=response,
+                    total_cost=response["data"]["total_cost"]
+                )
+            finally:
+                if session:
+                    if r:
+                        r.close()
+                    await session.close()
+
+
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
+            streaming = True
+
             async def inspect_data(stream_reader: asyncio.StreamReader):
                 saved_generation = False
                 while True:
@@ -740,15 +775,14 @@ async def generate_chat_completion(
                             try:
                                 data = json.loads(data.removeprefix("data:"))
                                 log.info(data)
-                                if "id" in data:
-                                    log.info("saving gen id")
+                                if url.startswith("https://openrouter.ai") and "id" in data:
                                     OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=data["id"])
                                     saved_generation = True
+                                    create_task(__fetch_generation_cost(data["id"]))
                             except Exception:
                                 pass
                     yield chunk
 
-            streaming = True
             return StreamingResponse(
                 inspect_data(r.content),
                 status_code=r.status,
@@ -760,9 +794,9 @@ async def generate_chat_completion(
         else:
             try:
                 response = await r.json()
-                if "id" in response:
-                    log.info("saving gen id")
+                if url.startswith("https://openrouter.ai") and "id" in response:
                     OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=response["id"])
+                    create_task(__fetch_generation_cost(response["id"]))
             except Exception as e:
                 log.error(e)
                 response = await r.text()

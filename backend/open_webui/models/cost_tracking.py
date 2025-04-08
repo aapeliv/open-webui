@@ -64,15 +64,12 @@ class OpenRouterGenerationForm(BaseModel):
     meta: Optional[dict] = None
     access_control: Optional[dict] = None
 
-
 class OpenRouterGenerationTable:
     def upsert_generation(
 self, user_id: str, open_router_gen_id: str
     ) -> Optional[OpenRouterGenerationModel]:
         with get_db() as db:
-            log.info("trying to update?")
             existing_gen = db.query(OpenRouterGeneration).filter_by(open_router_gen_id=open_router_gen_id).one_or_none()
-            log.info(f"{existing_gen=}")
             if not existing_gen:
                 db.add(OpenRouterGeneration(
                     id=str(uuid.uuid4()),
@@ -83,50 +80,15 @@ self, user_id: str, open_router_gen_id: str
                 ))
                 db.commit()
 
-
-    # def get_channels(self) -> list[ChannelModel]:
-    #     with get_db() as db:
-    #         channels = db.query(Channel).all()
-    #         return [ChannelModel.model_validate(channel) for channel in channels]
-
-    # def get_channels_by_user_id(
-    #     self, user_id: str, permission: str = "read"
-    # ) -> list[ChannelModel]:
-    #     channels = self.get_channels()
-    #     return [
-    #         channel
-    #         for channel in channels
-    #         if channel.user_id == user_id
-    #         or has_access(user_id, permission, channel.access_control)
-    #     ]
-
-    # def get_channel_by_id(self, id: str) -> Optional[ChannelModel]:
-    #     with get_db() as db:
-    #         channel = db.query(Channel).filter(Channel.id == id).first()
-    #         return ChannelModel.model_validate(channel) if channel else None
-
-    # def update_channel_by_id(
-    #     self, id: str, form_data: ChannelForm
-    # ) -> Optional[ChannelModel]:
-    #     with get_db() as db:
-    #         channel = db.query(Channel).filter(Channel.id == id).first()
-    #         if not channel:
-    #             return None
-
-    #         channel.name = form_data.name
-    #         channel.data = form_data.data
-    #         channel.meta = form_data.meta
-    #         channel.access_control = form_data.access_control
-    #         channel.updated_at = int(time.time_ns())
-
-    #         db.commit()
-    #         return ChannelModel.model_validate(channel) if channel else None
-
-    # def delete_channel_by_id(self, id: str):
-    #     with get_db() as db:
-    #         db.query(Channel).filter(Channel.id == id).delete()
-    #         db.commit()
-    #         return True
-
+    def update_fetched_data(self, open_router_gen_id: str, data, total_cost):
+        with get_db() as db:
+            existing_gen = db.query(OpenRouterGeneration).filter_by(open_router_gen_id=open_router_gen_id).one_or_none()
+            if not existing_gen:
+                log.error(f"Didn't find gen with id {open_router_gen_id}")
+                return
+            existing_gen.fetched_at = int(time.time_ns())
+            existing_gen.total_cost = total_cost
+            existing_gen.data = data
+            db.commit()
 
 OpenRouterGenerations = OpenRouterGenerationTable()

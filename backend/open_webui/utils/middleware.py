@@ -1582,8 +1582,6 @@ async def process_chat_response(
 
                     response_tool_calls = []
 
-                    saved_generation = False
-
                     async for line in response.body_iterator:
                         line = line.decode("utf-8") if isinstance(line, bytes) else line
                         data = line
@@ -1611,10 +1609,6 @@ async def process_chat_response(
                             )
 
                             if data:
-                                if not saved_generation and "id" in data:
-                                    log.info("saving gen id")
-                                    OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=data["id"])
-                                    saved_generation = True
                                 if "selected_model_id" in data:
                                     model_id = data["selected_model_id"]
                                     Chats.upsert_message_to_chat_by_id_and_message_id(
