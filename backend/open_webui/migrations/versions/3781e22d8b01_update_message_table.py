@@ -61,6 +61,18 @@ def upgrade():
         ),  # Timestamp of when the user joined the channel
     )
 
+    op.create_table(
+        "open_router_generations",
+        sa.Column("id", sa.Text(), nullable=False, primary_key=True, unique=True),
+        sa.Column("user_id", sa.Text(), nullable=False),
+        sa.Column("open_router_gen_id", sa.Text(), nullable=False, index=True),
+        sa.Column("fetched_at", sa.BigInteger(), nullable=True),
+        sa.Column("total_cost", sa.Float(), nullable=True),
+        sa.Column("data", sa.JSON(), nullable=True),
+        sa.Column("created_at", sa.BigInteger(), nullable=True),
+        sa.Column("updated_at", sa.BigInteger(), nullable=True),
+    )
+
 
 def downgrade():
     # Revert 'type' column addition to the 'channel' table
@@ -68,3 +80,4 @@ def downgrade():
     op.drop_column("message", "parent_id")
     op.drop_table("message_reaction")
     op.drop_table("channel_member")
+    op.drop_table("open_router_generations")

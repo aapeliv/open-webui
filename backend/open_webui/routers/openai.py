@@ -15,7 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
+from open_webui.tasks import create_task
 
+from open_webui.models.cost_tracking import OpenRouterGenerations
 from open_webui.models.models import Models
 from open_webui.config import (
     CACHE_DIR,
@@ -216,8 +218,8 @@ async def speech(request: Request, user=Depends(get_verified_user)):
                     "Authorization": f"Bearer {request.app.state.config.OPENAI_API_KEYS[idx]}",
                     **(
                         {
-                            "HTTP-Referer": "https://openwebui.com/",
-                            "X-Title": "Open WebUI",
+                            "HTTP-Referer": "https://ai.a19e.net/",
+                            "X-Title": "ai.a19e.net",
                         }
                         if "openrouter.ai" in url
                         else {}
@@ -692,6 +694,35 @@ async def generate_chat_completion(
     streaming = False
     response = None
 
+    async def _fetch_generation_cost(open_router_gen_id):
+        for try_number in range(5):
+            await asyncio.sleep(2 ** (2 + try_number))
+            try:
+                # log.info("I have slept well and now I'm ready to work.")
+                async with aiohttp.ClientSession(
+                    trust_env=True,
+                    timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+                ) as session:
+                    async with await session.request(
+                        method="GET",
+                        url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
+                        headers={
+                            "Authorization": f"Bearer {key}",
+                            "Content-Type": "application/json",
+                        },
+                    ) as res:
+                        response = await res.json()
+
+                        OpenRouterGenerations.update_fetched_data(
+                            open_router_gen_id=open_router_gen_id,
+                            data=response,
+                            total_cost=response["data"]["total_cost"],
+                            model=response["data"]["model"],
+                        )
+                break
+            except Exception as e:
+                log.exception(e)
+
     try:
         session = aiohttp.ClientSession(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
@@ -706,8 +737,8 @@ async def generate_chat_completion(
                 "Content-Type": "application/json",
                 **(
                     {
-                        "HTTP-Referer": "https://openwebui.com/",
-                        "X-Title": "Open WebUI",
+                        "HTTP-Referer": "https://ai.a19e.net/",
+                        "X-Title": "ai.a19e.net",
                     }
                     if "openrouter.ai" in url
                     else {}
@@ -728,8 +759,37 @@ async def generate_chat_completion(
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
+
+            async def grab_gen_id(stream_reader: asyncio.StreamReader):
+                saved_generation = False
+                while True:
+                    chunk = await stream_reader.readline()
+                    if not chunk:
+                        break
+                    if not saved_generation:
+                        data = (
+                            chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+                        )
+                        if data.strip() and data.startswith("data:"):
+                            try:
+                                data = json.loads(data.removeprefix("data:"))
+                                # log.info(data)
+                                if (
+                                    url.startswith("https://openrouter.ai")
+                                    and "id" in data
+                                ):
+                                    OpenRouterGenerations.upsert_generation(
+                                        user_id=user.id, open_router_gen_id=data["id"]
+                                    )
+                                    saved_generation = True
+                            except Exception:
+                                pass
+                    yield chunk
+                if saved_generation:
+                    create_task(_fetch_generation_cost(data["id"]))
+
             return StreamingResponse(
-                r.content,
+                grab_gen_id(r.content),
                 status_code=r.status,
                 headers=dict(r.headers),
                 background=BackgroundTask(
@@ -739,6 +799,11 @@ async def generate_chat_completion(
         else:
             try:
                 response = await r.json()
+                if url.startswith("https://openrouter.ai") and "id" in response:
+                    OpenRouterGenerations.upsert_generation(
+                        user_id=user.id, open_router_gen_id=response["id"]
+                    )
+                    create_task(_fetch_generation_cost(response["id"]))
             except Exception as e:
                 log.error(e)
                 response = await r.text()

@@ -90,6 +90,7 @@ from open_webui.models.functions import Functions
 from open_webui.models.models import Models
 from open_webui.models.users import UserModel, Users
 from open_webui.models.chats import Chats
+from open_webui.models.cost_tracking import OpenRouterGenerations
 
 from open_webui.config import (
     LICENSE_KEY,
@@ -1386,6 +1387,11 @@ async def oauth_login(provider: str, request: Request):
 @app.get("/oauth/{provider}/callback")
 async def oauth_callback(provider: str, request: Request, response: Response):
     return await oauth_manager.handle_callback(request, provider, response)
+
+
+@app.get("/api/cost_tracking")
+async def get_cost_tracking(request: Request, user=Depends(get_admin_user)):
+    return {"data": OpenRouterGenerations.get_all_costs()}
 
 
 @app.get("/manifest.json")

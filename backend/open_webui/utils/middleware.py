@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import Request, HTTPException
 from starlette.responses import Response, StreamingResponse
 
-
+from open_webui.models.cost_tracking import OpenRouterGenerations
 from open_webui.models.chats import Chats
 from open_webui.models.users import Users
 from open_webui.socket.main import (
