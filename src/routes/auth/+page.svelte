@@ -230,6 +230,10 @@
 									{/if}
 								</div>
 
+								<div class=" mt-4 text-sm text-center">
+									One gateway to all the latest AI models.
+								</div>
+
 								{#if $config?.onboarding ?? false}
 									<div class=" mt-1 text-xs font-medium text-gray-500">
 										ⓘ {$WEBUI_NAME}
