@@ -695,37 +695,33 @@ async def generate_chat_completion(
     response = None
 
     async def _fetch_generation_cost(open_router_gen_id):
-        try:
-            await asyncio.sleep(5)
-            # log.info("I have slept well and now I'm ready to work.")
-            session = aiohttp.ClientSession(
-                trust_env=True,
-                timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
-            )
+        for try_number in range(5):
+            await asyncio.sleep(2 ** (2 + try_number))
+            try:
+                # log.info("I have slept well and now I'm ready to work.")
+                async with aiohttp.ClientSession(
+                    trust_env=True,
+                    timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
+                ) as session:
+                    async with await session.request(
+                        method="GET",
+                        url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
+                        headers={
+                            "Authorization": f"Bearer {key}",
+                            "Content-Type": "application/json",
+                        },
+                    ) as res:
+                        response = await res.json()
 
-            r = await session.request(
-                method="GET",
-                url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
-            )
-
-            response = await r.json()
-
-            OpenRouterGenerations.update_fetched_data(
-                open_router_gen_id=open_router_gen_id,
-                data=response,
-                total_cost=response["data"]["total_cost"],
-            )
-        except Exception:
-            pass
-        finally:
-            if session:
-                if r:
-                    r.close()
-                await session.close()
+                        OpenRouterGenerations.update_fetched_data(
+                            open_router_gen_id=open_router_gen_id,
+                            data=response,
+                            total_cost=response["data"]["total_cost"],
+                            model=response["data"]["model"],
+                        )
+                break
+            except Exception as e:
+                log.exception(e)
 
     try:
         session = aiohttp.ClientSession(
@@ -764,7 +760,7 @@ async def generate_chat_completion(
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
 
-            async def inspect_data(stream_reader: asyncio.StreamReader):
+            async def grab_gen_id(stream_reader: asyncio.StreamReader):
                 saved_generation = False
                 while True:
                     chunk = await stream_reader.readline()
@@ -777,7 +773,7 @@ async def generate_chat_completion(
                         if data.strip() and data.startswith("data:"):
                             try:
                                 data = json.loads(data.removeprefix("data:"))
-                                log.info(data)
+                                # log.info(data)
                                 if (
                                     url.startswith("https://openrouter.ai")
                                     and "id" in data
@@ -786,13 +782,14 @@ async def generate_chat_completion(
                                         user_id=user.id, open_router_gen_id=data["id"]
                                     )
                                     saved_generation = True
-                                    create_task(_fetch_generation_cost(data["id"]))
                             except Exception:
                                 pass
                     yield chunk
+                if saved_generation:
+                    create_task(_fetch_generation_cost(data["id"]))
 
             return StreamingResponse(
-                inspect_data(r.content),
+                grab_gen_id(r.content),
                 status_code=r.status,
                 headers=dict(r.headers),
                 background=BackgroundTask(

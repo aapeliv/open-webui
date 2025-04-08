@@ -30,6 +30,7 @@ class OpenRouterGeneration(Base):
     open_router_gen_id = Column(Text, index=True)
 
     fetched_at = Column(BigInteger, nullable=True)
+    model = Column(Text, nullable=True)
     total_cost = Column(Float, nullable=True)
     # raw response from open router
     data = Column(JSON, nullable=True)
@@ -47,6 +48,7 @@ class OpenRouterGenerationModel(BaseModel):
 
     fetched_at: Optional[int] = None
     total_cost: Optional[float] = None
+    model: Optional[str] = None
     data: Optional[dict] = None
 
     created_at: int  # timestamp in epoch
@@ -88,7 +90,7 @@ class OpenRouterGenerationTable:
                 )
                 db.commit()
 
-    def update_fetched_data(self, open_router_gen_id: str, data, total_cost):
+    def update_fetched_data(self, open_router_gen_id: str, data, total_cost, model):
         with get_db() as db:
             existing_gen = (
                 db.query(OpenRouterGeneration)
@@ -100,6 +102,7 @@ class OpenRouterGenerationTable:
                 return
             existing_gen.fetched_at = int(time.time_ns())
             existing_gen.total_cost = total_cost
+            existing_gen.model = model
             existing_gen.data = data
             db.commit()
 
@@ -114,16 +117,36 @@ class OpenRouterGenerationTable:
                 .subquery()
             )
             res = db.execute(
-                select(User.name, User.email, User.id, subq.c.cumulative_cost).join(
-                    subq, subq.c.user_id == User.id
-                )
+                select(User.id, User.name, User.email, subq.c.cumulative_cost)
+                .join(subq, subq.c.user_id == User.id)
+                .order_by(subq.c.cumulative_cost.desc())
             ).all()
             return [
                 {
                     "id": user_id,
                     "name": name,
                     "email": email,
-                    "cumulative_cost": cumulative_cost,
+                    "total_cost": cumulative_cost,
+                    "cost_by_model": [
+                        {
+                            "model": model or "unknown",
+                            "total_cost": total_cost,
+                        }
+                        for model, total_cost in db.execute(
+                            select(
+                                OpenRouterGeneration.model,
+                                func.sum(OpenRouterGeneration.total_cost),
+                            )
+                            .where(OpenRouterGeneration.user_id == user_id)
+                            .group_by(OpenRouterGeneration.model)
+                            .order_by(func.sum(OpenRouterGeneration.total_cost).desc())
+                        ).all()
+                    ],
+                    "missing_costs": db.execute(
+                        select(func.count(OpenRouterGeneration.open_router_gen_id))
+                        .where(OpenRouterGeneration.user_id == user_id)
+                        .where(OpenRouterGeneration.fetched_at == None)
+                    ).scalar_one(),
                 }
                 for user_id, name, email, cumulative_cost in res
             ]
