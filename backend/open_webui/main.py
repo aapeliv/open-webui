@@ -1394,7 +1394,6 @@ async def get_cost_tracking(request: Request, user=Depends(get_admin_user)):
     return {"data": OpenRouterGenerations.get_all_costs()}
 
 
-
 @app.get("/manifest.json")
 async def get_manifest_json():
     return {

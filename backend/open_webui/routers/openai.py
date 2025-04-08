@@ -699,7 +699,8 @@ async def generate_chat_completion(
             await asyncio.sleep(5)
             # log.info("I have slept well and now I'm ready to work.")
             session = aiohttp.ClientSession(
-                trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
+                trust_env=True,
+                timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT),
             )
 
             r = await session.request(
@@ -716,7 +717,7 @@ async def generate_chat_completion(
             OpenRouterGenerations.update_fetched_data(
                 open_router_gen_id=open_router_gen_id,
                 data=response,
-                total_cost=response["data"]["total_cost"]
+                total_cost=response["data"]["total_cost"],
             )
         except Exception:
             pass
@@ -725,7 +726,6 @@ async def generate_chat_completion(
                 if r:
                     r.close()
                 await session.close()
-
 
     try:
         session = aiohttp.ClientSession(
@@ -760,7 +760,6 @@ async def generate_chat_completion(
             },
         )
 
-
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
@@ -772,13 +771,20 @@ async def generate_chat_completion(
                     if not chunk:
                         break
                     if not saved_generation:
-                        data = chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+                        data = (
+                            chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+                        )
                         if data.strip() and data.startswith("data:"):
                             try:
                                 data = json.loads(data.removeprefix("data:"))
                                 log.info(data)
-                                if url.startswith("https://openrouter.ai") and "id" in data:
-                                    OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=data["id"])
+                                if (
+                                    url.startswith("https://openrouter.ai")
+                                    and "id" in data
+                                ):
+                                    OpenRouterGenerations.upsert_generation(
+                                        user_id=user.id, open_router_gen_id=data["id"]
+                                    )
                                     saved_generation = True
                                     create_task(_fetch_generation_cost(data["id"]))
                             except Exception:
@@ -797,7 +803,9 @@ async def generate_chat_completion(
             try:
                 response = await r.json()
                 if url.startswith("https://openrouter.ai") and "id" in response:
-                    OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=response["id"])
+                    OpenRouterGenerations.upsert_generation(
+                        user_id=user.id, open_router_gen_id=response["id"]
+                    )
                     create_task(_fetch_generation_cost(response["id"]))
             except Exception as e:
                 log.error(e)

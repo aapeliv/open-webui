@@ -12,6 +12,7 @@ from sqlalchemy import BigInteger, Boolean, Column, String, Text, JSON, Float
 from sqlalchemy import or_, func, select, and_, text
 from sqlalchemy.sql import exists
 import logging, sys
+
 logging.basicConfig(stream=sys.stdout)
 log = logging.getLogger(__name__)
 
@@ -35,7 +36,6 @@ class OpenRouterGeneration(Base):
 
     created_at = Column(BigInteger)
     updated_at = Column(BigInteger)
-
 
 
 class OpenRouterGenerationModel(BaseModel):
@@ -65,25 +65,36 @@ class OpenRouterGenerationForm(BaseModel):
     meta: Optional[dict] = None
     access_control: Optional[dict] = None
 
+
 class OpenRouterGenerationTable:
     def upsert_generation(
-self, user_id: str, open_router_gen_id: str
+        self, user_id: str, open_router_gen_id: str
     ) -> Optional[OpenRouterGenerationModel]:
         with get_db() as db:
-            existing_gen = db.query(OpenRouterGeneration).filter_by(open_router_gen_id=open_router_gen_id).one_or_none()
+            existing_gen = (
+                db.query(OpenRouterGeneration)
+                .filter_by(open_router_gen_id=open_router_gen_id)
+                .one_or_none()
+            )
             if not existing_gen:
-                db.add(OpenRouterGeneration(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    open_router_gen_id=open_router_gen_id,
-                    created_at=int(time.time_ns()),
-                    updated_at=int(time.time_ns()),
-                ))
+                db.add(
+                    OpenRouterGeneration(
+                        id=str(uuid.uuid4()),
+                        user_id=user_id,
+                        open_router_gen_id=open_router_gen_id,
+                        created_at=int(time.time_ns()),
+                        updated_at=int(time.time_ns()),
+                    )
+                )
                 db.commit()
 
     def update_fetched_data(self, open_router_gen_id: str, data, total_cost):
         with get_db() as db:
-            existing_gen = db.query(OpenRouterGeneration).filter_by(open_router_gen_id=open_router_gen_id).one_or_none()
+            existing_gen = (
+                db.query(OpenRouterGeneration)
+                .filter_by(open_router_gen_id=open_router_gen_id)
+                .one_or_none()
+            )
             if not existing_gen:
                 log.error(f"Didn't find gen with id {open_router_gen_id}")
                 return
@@ -94,15 +105,28 @@ self, user_id: str, open_router_gen_id: str
 
     def get_all_costs(self):
         with get_db() as db:
-            subq = select(OpenRouterGeneration.user_id, func.sum(OpenRouterGeneration.total_cost).label("cumulative_cost")).group_by(OpenRouterGeneration.user_id).subquery()
-            res = db.execute(select(User.name, User.email, User.id, subq.c.cumulative_cost).join(subq, subq.c.user_id == User.id)).all()
+            subq = (
+                select(
+                    OpenRouterGeneration.user_id,
+                    func.sum(OpenRouterGeneration.total_cost).label("cumulative_cost"),
+                )
+                .group_by(OpenRouterGeneration.user_id)
+                .subquery()
+            )
+            res = db.execute(
+                select(User.name, User.email, User.id, subq.c.cumulative_cost).join(
+                    subq, subq.c.user_id == User.id
+                )
+            ).all()
             return [
                 {
                     "id": user_id,
                     "name": name,
                     "email": email,
                     "cumulative_cost": cumulative_cost,
-                } for user_id, name, email, cumulative_cost in res
+                }
+                for user_id, name, email, cumulative_cost in res
             ]
+
 
 OpenRouterGenerations = OpenRouterGenerationTable()

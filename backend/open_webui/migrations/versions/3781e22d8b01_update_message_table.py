@@ -63,28 +63,14 @@ def upgrade():
 
     op.create_table(
         "open_router_generations",
-        sa.Column(
-            "id", sa.Text(), nullable=False, primary_key=True, unique=True
-        ),
+        sa.Column("id", sa.Text(), nullable=False, primary_key=True, unique=True),
         sa.Column("user_id", sa.Text(), nullable=False),
-        sa.Column(
-            "open_router_gen_id", sa.Text(), nullable=False, index=True
-        ),
-        sa.Column(
-            "fetched_at", sa.BigInteger(), nullable=True
-        ),
-        sa.Column(
-            "total_cost", sa.Float(), nullable=True
-        ),
-        sa.Column(
-            "data", sa.JSON(), nullable=True
-        ),
-        sa.Column(
-            "created_at", sa.BigInteger(), nullable=True
-        ),
-        sa.Column(
-            "updated_at", sa.BigInteger(), nullable=True
-        ),
+        sa.Column("open_router_gen_id", sa.Text(), nullable=False, index=True),
+        sa.Column("fetched_at", sa.BigInteger(), nullable=True),
+        sa.Column("total_cost", sa.Float(), nullable=True),
+        sa.Column("data", sa.JSON(), nullable=True),
+        sa.Column("created_at", sa.BigInteger(), nullable=True),
+        sa.Column("updated_at", sa.BigInteger(), nullable=True),
     )
 
 
