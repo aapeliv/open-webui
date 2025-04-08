@@ -5,6 +5,7 @@ from typing import Optional
 
 from open_webui.internal.db import Base, get_db
 from open_webui.utils.access_control import has_access
+from open_webui.models.users import User
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Boolean, Column, String, Text, JSON, Float
@@ -90,5 +91,18 @@ self, user_id: str, open_router_gen_id: str
             existing_gen.total_cost = total_cost
             existing_gen.data = data
             db.commit()
+
+    def get_all_costs(self):
+        with get_db() as db:
+            subq = select(OpenRouterGeneration.user_id, func.sum(OpenRouterGeneration.total_cost).label("cumulative_cost")).group_by(OpenRouterGeneration.user_id).subquery()
+            res = db.execute(select(User.name, User.email, User.id, subq.c.cumulative_cost).join(subq, subq.c.user_id == User.id)).all()
+            return [
+                {
+                    "id": user_id,
+                    "name": name,
+                    "email": email,
+                    "cumulative_cost": cumulative_cost,
+                } for user_id, name, email, cumulative_cost in res
+            ]
 
 OpenRouterGenerations = OpenRouterGenerationTable()

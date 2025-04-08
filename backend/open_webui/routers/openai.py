@@ -694,6 +694,39 @@ async def generate_chat_completion(
     streaming = False
     response = None
 
+    async def _fetch_generation_cost(open_router_gen_id):
+        try:
+            await asyncio.sleep(5)
+            # log.info("I have slept well and now I'm ready to work.")
+            session = aiohttp.ClientSession(
+                trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
+            )
+
+            r = await session.request(
+                method="GET",
+                url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+            response = await r.json()
+
+            OpenRouterGenerations.update_fetched_data(
+                open_router_gen_id=open_router_gen_id,
+                data=response,
+                total_cost=response["data"]["total_cost"]
+            )
+        except Exception:
+            pass
+        finally:
+            if session:
+                if r:
+                    r.close()
+                await session.close()
+
+
     try:
         session = aiohttp.ClientSession(
             trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
@@ -728,37 +761,6 @@ async def generate_chat_completion(
         )
 
 
-        async def __fetch_generation_cost(open_router_gen_id):
-            try:
-                await asyncio.sleep(5)
-                # log.info("I have slept well and now I'm ready to work.")
-                session = aiohttp.ClientSession(
-                    trust_env=True, timeout=aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT)
-                )
-
-                r = await session.request(
-                    method="GET",
-                    url=f"https://openrouter.ai/api/v1/generation?id={open_router_gen_id}",
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "Content-Type": "application/json",
-                    },
-                )
-
-                response = await r.json()
-
-                OpenRouterGenerations.update_fetched_data(
-                    open_router_gen_id=open_router_gen_id,
-                    data=response,
-                    total_cost=response["data"]["total_cost"]
-                )
-            finally:
-                if session:
-                    if r:
-                        r.close()
-                    await session.close()
-
-
         # Check if response is SSE
         if "text/event-stream" in r.headers.get("Content-Type", ""):
             streaming = True
@@ -778,7 +780,7 @@ async def generate_chat_completion(
                                 if url.startswith("https://openrouter.ai") and "id" in data:
                                     OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=data["id"])
                                     saved_generation = True
-                                    create_task(__fetch_generation_cost(data["id"]))
+                                    create_task(_fetch_generation_cost(data["id"]))
                             except Exception:
                                 pass
                     yield chunk
@@ -796,7 +798,7 @@ async def generate_chat_completion(
                 response = await r.json()
                 if url.startswith("https://openrouter.ai") and "id" in response:
                     OpenRouterGenerations.upsert_generation(user_id=user.id, open_router_gen_id=response["id"])
-                    create_task(__fetch_generation_cost(response["id"]))
+                    create_task(_fetch_generation_cost(response["id"]))
             except Exception as e:
                 log.error(e)
                 response = await r.text()
