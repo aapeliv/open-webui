@@ -45,6 +45,14 @@ from open_webui.utils.misc import (
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.access_control import has_access
 
+from open_webui.metrics import (
+    number_completions_counter,
+    total_cost_counter,
+    input_tokens_counter,
+    output_tokens_counter,
+    thinking_tokens_counter,
+    total_cost_by_provider_counter,
+)
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["OPENAI"])
@@ -719,6 +727,24 @@ async def generate_chat_completion(
                             total_cost=response["data"]["total_cost"],
                             model=response["data"]["model"],
                         )
+                        number_completions_counter.labels(
+                            model=response["data"]["model"], user=user.id
+                        ).inc()
+                        total_cost_counter.labels(
+                            model=response["data"]["model"], user=user.id
+                        ).inc(response["data"]["total_cost"])
+                        total_cost_by_provider_counter.labels(
+                            provider=response["data"]["provider_name"]
+                        ).inc(response["data"]["total_cost"])
+                        input_tokens_counter.labels(
+                            model=response["data"]["model"], user=user.id
+                        ).inc(response["data"]["native_tokens_prompt"])
+                        output_tokens_counter.labels(
+                            model=response["data"]["model"], user=user.id
+                        ).inc(response["data"]["native_tokens_completion"])
+                        thinking_tokens_counter.labels(
+                            model=response["data"]["model"], user=user.id
+                        ).inc(response["data"]["native_tokens_reasoning"])
                 break
             except Exception as e:
                 log.exception(e)

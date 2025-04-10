@@ -10,6 +10,7 @@ from open_webui.models.groups import Groups
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import BigInteger, Column, String, Text
+from sqlalchemy import func, select
 
 ####################
 # User DB Schema
@@ -329,6 +330,13 @@ class UsersTable:
         with get_db() as db:
             users = db.query(User).filter(User.id.in_(user_ids)).all()
             return [user.id for user in users]
+
+    def count_users(self, filter_role=None) -> int:
+        with get_db() as db:
+            st = select(func.count(User.id))
+            if filter_role:
+                st = st.where(User.role == filter_role)
+            return db.execute(st).scalar_one()
 
 
 Users = UsersTable()

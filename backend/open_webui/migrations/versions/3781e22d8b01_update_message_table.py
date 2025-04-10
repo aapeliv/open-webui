@@ -69,6 +69,7 @@ def upgrade():
         sa.Column("fetched_at", sa.BigInteger(), nullable=True),
         sa.Column("total_cost", sa.Float(), nullable=True),
         sa.Column("data", sa.JSON(), nullable=True),
+        sa.Column("model", sa.Text(), nullable=True),
         sa.Column("created_at", sa.BigInteger(), nullable=True),
         sa.Column("updated_at", sa.BigInteger(), nullable=True),
     )

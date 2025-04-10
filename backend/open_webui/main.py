@@ -92,6 +92,8 @@ from open_webui.models.users import UserModel, Users
 from open_webui.models.chats import Chats
 from open_webui.models.cost_tracking import OpenRouterGenerations
 
+from open_webui.metrics import start_metrics_server
+
 from open_webui.config import (
     LICENSE_KEY,
     # Ollama
@@ -411,6 +413,8 @@ v{VERSION} - building the best open-source AI user interface.
 https://github.com/open-webui/open-webui
 """
 )
+
+start_metrics_server()
 
 
 @asynccontextmanager
