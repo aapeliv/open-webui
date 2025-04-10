@@ -734,7 +734,7 @@ async def generate_chat_completion(
                             model=response["data"]["model"], user=user.id
                         ).inc(response["data"]["total_cost"])
                         total_cost_by_provider_counter.labels(
-                            provider=response["data"]["provider"]
+                            provider=response["data"]["provider_name"]
                         ).inc(response["data"]["total_cost"])
                         input_tokens_counter.labels(
                             model=response["data"]["model"], user=user.id
