@@ -416,6 +416,7 @@ https://github.com/open-webui/open-webui
 
 start_metrics_server()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_logger()

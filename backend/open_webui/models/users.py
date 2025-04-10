@@ -338,4 +338,5 @@ class UsersTable:
                 st = st.where(User.role == filter_role)
             return db.execute(st).scalar_one()
 
+
 Users = UsersTable()
