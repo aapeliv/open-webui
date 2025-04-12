@@ -686,7 +686,7 @@ async def generate_chat_completion(
             payload["max_tokens"] = payload["max_completion_tokens"]
             del payload["max_completion_tokens"]
 
-    if "px.axess-ai.com" in url:
+    if "px.axess-ai.com" in url or "proxy:4000" in url:
         payload["user"] = user.id
 
     if "max_tokens" in payload and "max_completion_tokens" in payload:
